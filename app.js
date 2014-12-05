@@ -5,17 +5,62 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var mysql = require('mysql');
-var connection  = require('express-myconnection'); 
-
+var connection  = require('express-myconnection');
+var oauthserver = require('oauth2-server');
 
 var routes = require('./routes/index');
 var users = require('./routes/user');
 
 var app = express();
 
+
+
+app.oauth = oauthserver({
+  model: {
+    getAccessToken : function(bearerToken, callback){
+        callback(null,{
+            accessToken : 'validtoken',
+            clientId : 'clientId',
+            expires : '900000',
+            userId : 1
+        });
+        done();
+    },
+    getClient : function(clientId, clientSecret, callback){   
+        callback(null, {
+            clientId : clientId,
+            clientSecret : clientSecret
+        });
+    },
+    getRefreshToken : function(bearerToken, callback){
+        callback(null, {refreshToken : 'refreshToken'});
+        done();
+    },
+    grantTypeAllowed : function(clientId, grantType, callback){        
+        return callback(false,true);
+    },
+    saveAccessToken : function(accessToken, clientId, expires, userId, callback){
+        callback(null);       
+    },
+    saveRefreshToken : function(refreshToken, clientId, expires, userId, callback){
+        callback(null);        
+    },
+    getUser : function(username, password, callback){       
+        callback(false, {
+            id : 1,
+            name : 'leury'
+        });
+    }
+  }, // See below for specification
+  grants: ['password'],
+  debug: true
+});
+
+
+
 // view engine setup
-//app.set('views', path.join(__dirname, 'views'));
-//app.set('view engine', 'jade');
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'jade');
 
 // app.use(favicon(__dirname + '/public/img/favicon.ico'));
 app.use(logger('dev'));
@@ -37,8 +82,16 @@ app.use(
 );
 
 
-app.use('/', routes);
-app.use('/users', users);
+app.all('/oauth/token', app.oauth.grant());
+
+app.use(app.oauth.errorHandler());
+
+//app.use('/', routes);
+//app.use('/users', users);
+
+app.get('/', app.oauth.authorise(), function (req, res) {
+  res.send('Secret area');
+});
 
 /// catch 404 and forward to error handler
 app.use(function(req, res, next) {
